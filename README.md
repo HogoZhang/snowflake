@@ -2,8 +2,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-electron-blue)](https://www.electronjs.org/)
-[![React](https://img.shields.io/badge/React-react-blueviolet)]
-[![Node](https://img.shields.io/badge/Node-nodejs-green)]
+[![React](https://img.shields.io/badge/React-react-blueviolet)](https://react.dev/)
+[![Node](https://img.shields.io/badge/Node-nodejs-green)](https://nodejs.org/)
 
 Snowflake 是一个基于 Electron、React 和 TypeScript 的离线桌面应用，用于个人任务管理、日记总结、时间追踪、统计分析，以及本地数据导入导出。
 
