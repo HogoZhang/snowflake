@@ -31,7 +31,8 @@ export function getMainWindowOptions(preloadPath: string, platform: NodeJS.Platf
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false
-    }
+    },
+    icon: join(__dirname, '../../resources/icons/app-icon.png')
   }
 }
 

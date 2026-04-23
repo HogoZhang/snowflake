@@ -48,10 +48,12 @@
     },
     "files": [
       "out/**/*",
-      "package.json"
+      "package.json",
+      "resources/**/*"
     ],
     "win": {
       "signAndEditExecutable": false,
+      "icon": "resources/icons/app-icon.png",
       "target": [
         {
           "target": "nsis",
