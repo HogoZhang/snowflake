@@ -1725,6 +1725,69 @@ h2 {
   gap: 10px;
 }
 
+.advanced-search-panel {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+
+.advanced-search-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.advanced-search-panel .field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.advanced-search-panel .field > span {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.advanced-search-panel .checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.shortcut-list {
+  display: grid;
+  gap: 12px;
+}
+
+.shortcut-key {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  margin-left: 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 12%, white);
+  color: var(--primary);
+  font-family: ui-monospace, 'SFMono-Regular', monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.shortcut-list .checkbox-field {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 24%, white);
+  border: 1px solid var(--surface-border);
+  transition: all 160ms ease;
+}
+
+.shortcut-list .checkbox-field:hover {
+  background: color-mix(in srgb, var(--accent) 36%, white);
+}
+
 @media (max-width: 1120px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1781,6 +1844,21 @@ h2 {
     align-items: stretch;
   }
 
+  .task-filter-row {
+    flex-wrap: wrap;
+    justify-content: stretch;
+  }
+
+  .task-filter-row select,
+  .task-filter-row input {
+    width: 100%;
+    flex: 1;
+  }
+
+  .advanced-search-row {
+    grid-template-columns: 1fr;
+  }
+
   .journal-header,
   .journal-toolbar,
   .journal-editor-header {
@@ -1790,5 +1868,107 @@ h2 {
 
   .journal-list-panel {
     position: static;
+  }
+
+  .shortcut-key {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .content-area {
+    padding: 16px;
+  }
+
+  .sidebar {
+    padding: 18px 12px;
+  }
+
+  .nav-list {
+    margin-top: 16px;
+    gap: 8px;
+  }
+
+  .nav-link {
+    padding: 10px 12px;
+  }
+
+  .topbar {
+    margin-bottom: 16px;
+  }
+
+  .list-card,
+  .hero-card,
+  .settings-actions-card {
+    padding: 16px;
+  }
+
+  .task-create-form {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .task-toolbar {
+    padding: 12px 14px;
+    gap: 12px;
+  }
+
+  .task-chip-row {
+    gap: 8px;
+  }
+
+  .task-chip {
+    min-width: 64px;
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 0.88rem;
+  }
+
+  .task-filter-row {
+    gap: 8px;
+  }
+
+  .task-card {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .task-detail-card,
+  .task-checklist-card,
+  .task-time-card {
+    padding: 14px;
+  }
+
+  .advanced-search-panel {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .advanced-search-row {
+    gap: 12px;
+  }
+
+  .analytics-summary-grid,
+  .metric-grid,
+  .settings-action-grid {
+    gap: 12px;
+  }
+
+  .analytics-stat-card,
+  .metric-card {
+    padding: 16px;
+  }
+
+  .theme-preview-grid {
+    gap: 10px;
+  }
+
+  .theme-preview-card {
+    padding: 12px;
+  }
+
+  .shortcut-list .checkbox-field {
+    padding: 10px 12px;
+    flex-wrap: wrap;
   }
 }

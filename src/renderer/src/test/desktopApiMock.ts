@@ -12,6 +12,12 @@ import type {
   ImportResult,
   JournalDocument,
   JournalTaskReference,
+  LogEntry,
+  LogFilter,
+  NotificationOptions,
+  NotificationResult,
+  ShortcutAction,
+  ShortcutDefinition,
   StorageSnapshot,
   TaskDocument,
   UpsertJournalEntryInput,
@@ -75,6 +81,19 @@ export const defaultAnalyticsSnapshot = (): AnalyticsSnapshot => ({
   journalDetails: []
 })
 
+export const defaultShortcuts = (): ShortcutDefinition[] => [
+  { action: 'new_task', accelerator: 'CmdOrCtrl+N', enabled: true },
+  { action: 'toggle_timer', accelerator: 'CmdOrCtrl+T', enabled: true },
+  { action: 'complete_task', accelerator: 'CmdOrCtrl+Enter', enabled: true },
+  { action: 'open_tasks', accelerator: 'CmdOrCtrl+1', enabled: true },
+  { action: 'open_journal', accelerator: 'CmdOrCtrl+2', enabled: true },
+  { action: 'open_analytics', accelerator: 'CmdOrCtrl+3', enabled: true },
+  { action: 'open_settings', accelerator: 'CmdOrCtrl+,', enabled: true },
+  { action: 'search', accelerator: 'CmdOrCtrl+F', enabled: true }
+]
+
+export const defaultLogs = (): LogEntry[] => []
+
 export function createDesktopApiMock(overrides: Partial<DesktopApi> = {}): DesktopApi {
   const exportResult: ExportResult = {
     format: 'snowflake',
@@ -110,7 +129,7 @@ export function createDesktopApiMock(overrides: Partial<DesktopApi> = {}): Deskt
       ...exportResult,
       filePath: 'D:/projects/snowflake/test-data/backup.snowflake'
     })),
-    importSnowflakePackage: vi.fn(async (mode: ImportMode): Promise<ImportResult> => ({
+    importSnowflakePackage: vi.fn(async (mode: ImportMode, _includeSettings: boolean): Promise<ImportResult> => ({
       ...importResult,
       mode
     })),
@@ -127,6 +146,19 @@ export function createDesktopApiMock(overrides: Partial<DesktopApi> = {}): Deskt
     addChecklistItem: vi.fn(async (_taskId: string, _input: CreateChecklistItemInput) => defaultTaskDocument()),
     toggleChecklistItem: vi.fn(async (_taskId: string, _checklistItemId: string) => defaultTaskDocument()),
     removeChecklistItem: vi.fn(async (_taskId: string, _checklistItemId: string) => defaultTaskDocument()),
+
+    showNotification: vi.fn(async (_options: NotificationOptions): Promise<NotificationResult> => ({
+      success: true,
+      notificationId: 'test-notification-123'
+    })),
+    getShortcuts: vi.fn(async (): Promise<ShortcutDefinition[]> => defaultShortcuts()),
+    updateShortcut: vi.fn(async (_action: ShortcutAction, _enabled: boolean): Promise<ShortcutDefinition[]> => defaultShortcuts()),
+
+    logDebug: vi.fn(async (_module: string, _message: string, _data?: Record<string, unknown>): Promise<void> => {}),
+    logInfo: vi.fn(async (_module: string, _message: string, _data?: Record<string, unknown>): Promise<void> => {}),
+    logWarn: vi.fn(async (_module: string, _message: string, _data?: Record<string, unknown>): Promise<void> => {}),
+    logError: vi.fn(async (_module: string, _message: string, _data?: Record<string, unknown>): Promise<void> => {}),
+    getLogs: vi.fn(async (_filter?: LogFilter): Promise<LogEntry[]> => defaultLogs()),
     ...overrides
   }
 }

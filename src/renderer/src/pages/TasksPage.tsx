@@ -11,6 +11,7 @@ import type {
 } from '@shared/schema'
 import { Badge, Button, Card, Input, Select, Textarea } from '@renderer/components/ui'
 import { getDesktopApi } from '@renderer/desktopApi'
+import { useAdvancedSearch } from '@renderer/hooks/useAdvancedSearch'
 
 type StatusFilter = 'all' | TaskStatus
 
@@ -67,20 +68,42 @@ function formatRunningDuration(durationMs: number): string {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
 }
 
-export function TasksPage(): ReactElement {
+interface TasksPageProps {
+  onNotifySuccess?: (message: string) => void
+  onNotifyError?: (message: string) => void
+}
+
+export function TasksPage({
+  onNotifySuccess,
+  onNotifyError
+}: TasksPageProps): ReactElement {
   const [document, setDocument] = useState<TaskDocument | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [estimatedMinutes, setEstimatedMinutes] = useState(30)
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [categoryFilter, setCategoryFilter] = useState('all')
-  const [search, setSearch] = useState('')
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false)
   const [checklistInput, setChecklistInput] = useState('')
   const [feedback, setFeedback] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [nowMs, setNowMs] = useState(() => Date.now())
+
+  const advancedSearch = useAdvancedSearch()
+
+  const notifySuccess = (message: string): void => {
+    setFeedback(message)
+    if (onNotifySuccess) {
+      void onNotifySuccess(message)
+    }
+  }
+
+  const notifyError = (message: string): void => {
+    setError(message)
+    if (onNotifyError) {
+      void onNotifyError(message)
+    }
+  }
 
   const selectedTask = useMemo(
     () => document?.tasks.find((task) => task.id === selectedTaskId) ?? null,
@@ -170,17 +193,8 @@ export function TasksPage(): ReactElement {
       return []
     }
 
-    return document.tasks.filter((task) => {
-      const matchesStatus = statusFilter === 'all' || task.status === statusFilter
-      const matchesCategory = categoryFilter === 'all' || task.categoryId === categoryFilter
-      const matchesSearch =
-        !search.trim() ||
-        task.title.toLowerCase().includes(search.trim().toLowerCase()) ||
-        task.description.toLowerCase().includes(search.trim().toLowerCase())
-
-      return matchesStatus && matchesCategory && matchesSearch
-    })
-  }, [categoryFilter, document, search, statusFilter])
+    return advancedSearch.filterTasks(document.tasks)
+  }, [advancedSearch, document])
 
   const groupedTasks = useMemo(
     () =>
@@ -203,7 +217,7 @@ export function TasksPage(): ReactElement {
   const handleCreateTask = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault()
     if (!title.trim()) {
-      setError('请输入任务标题。')
+      notifyError('请输入任务标题。')
       return
     }
 
@@ -220,9 +234,12 @@ export function TasksPage(): ReactElement {
       setTitle('')
       setEstimatedMinutes(30)
       setPriority('medium')
-      setFeedback('任务已创建。')
+      notifySuccess('任务已创建。')
+      void desktopApi.logInfo('Tasks', 'Task created', { taskId: createdTask?.id, title })
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : 'Failed to create task.')
+      const message = createError instanceof Error ? createError.message : 'Failed to create task.'
+      notifyError(message)
+      void getDesktopApi().logError('Tasks', 'Failed to create task', { error: message })
     }
   }
 
@@ -235,9 +252,14 @@ export function TasksPage(): ReactElement {
       const desktopApi = getDesktopApi()
       const nextDocument = await desktopApi.updateTask(taskId, input)
       applyDocument(nextDocument, taskId)
-      setFeedback(successMessage ?? null)
+      if (successMessage) {
+        notifySuccess(successMessage)
+      }
+      void desktopApi.logInfo('Tasks', 'Task updated', { taskId, input })
     } catch (mutationError) {
-      setError(mutationError instanceof Error ? mutationError.message : 'Failed to update task.')
+      const message = mutationError instanceof Error ? mutationError.message : 'Failed to update task.'
+      notifyError(message)
+      void getDesktopApi().logError('Tasks', 'Failed to update task', { taskId, error: message })
     }
   }
 
@@ -246,9 +268,12 @@ export function TasksPage(): ReactElement {
       const desktopApi = getDesktopApi()
       const nextDocument = await desktopApi.removeTask(taskId)
       applyDocument(nextDocument, null)
-      setFeedback('任务已删除。')
+      notifySuccess('任务已删除。')
+      void desktopApi.logInfo('Tasks', 'Task deleted', { taskId })
     } catch (removeError) {
-      setError(removeError instanceof Error ? removeError.message : 'Failed to remove task.')
+      const message = removeError instanceof Error ? removeError.message : 'Failed to remove task.'
+      notifyError(message)
+      void getDesktopApi().logError('Tasks', 'Failed to delete task', { taskId, error: message })
     }
   }
 
@@ -265,8 +290,11 @@ export function TasksPage(): ReactElement {
       })
       applyDocument(nextDocument, selectedTask.id)
       setChecklistInput('')
+      void desktopApi.logInfo('Tasks', 'Checklist item added', { taskId: selectedTask.id })
     } catch (checklistError) {
-      setError(checklistError instanceof Error ? checklistError.message : 'Failed to add checklist item.')
+      const message = checklistError instanceof Error ? checklistError.message : 'Failed to add checklist item.'
+      notifyError(message)
+      void getDesktopApi().logError('Tasks', 'Failed to add checklist item', { error: message })
     }
   }
 
@@ -331,8 +359,24 @@ export function TasksPage(): ReactElement {
             <button
               key={option.value}
               type="button"
-              className={statusFilter === option.value ? 'task-chip active' : 'task-chip'}
-              onClick={() => setStatusFilter(option.value)}
+              className={
+                (option.value === 'all' && advancedSearch.filter.statuses.length === 0) ||
+                (option.value !== 'all' && advancedSearch.filter.statuses.includes(option.value as TaskStatus))
+                  ? 'task-chip active'
+                  : 'task-chip'
+              }
+              onClick={() => {
+                if (option.value === 'all') {
+                  advancedSearch.updateFilter({ statuses: [] })
+                } else {
+                  const isActive = advancedSearch.filter.statuses.includes(option.value as TaskStatus)
+                  advancedSearch.updateFilter({
+                    statuses: isActive
+                      ? advancedSearch.filter.statuses.filter((s) => s !== option.value)
+                      : [option.value as TaskStatus]
+                  })
+                }
+              }}
             >
               {option.label}
             </button>
@@ -340,7 +384,15 @@ export function TasksPage(): ReactElement {
         </div>
 
         <div className="task-filter-row">
-          <Select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+          <Select
+            value={advancedSearch.filter.categories.length > 0 ? advancedSearch.filter.categories[0] : 'all'}
+            onChange={(event) => {
+              const value = event.target.value
+              advancedSearch.updateFilter({
+                categories: value === 'all' ? [] : [value]
+              })
+            }}
+          >
             <option value="all">全部分类</option>
             {document.categories.map((category) => (
               <option key={category.id} value={category.id}>
@@ -351,11 +403,98 @@ export function TasksPage(): ReactElement {
           <Input
             type="search"
             placeholder="搜索标题或描述"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            value={advancedSearch.filter.keyword}
+            onChange={(event) => advancedSearch.updateFilter({ keyword: event.target.value })}
           />
+          <Button
+            type="button"
+            variant={advancedSearch.isActive ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+            title="高级搜索"
+          >
+            {showAdvancedSearch ? '收起' : '高级'}
+          </Button>
         </div>
       </section>
+
+      {showAdvancedSearch ? (
+        <Card className="advanced-search-panel">
+          <div className="advanced-search-row">
+            <div className="field">
+              <span>搜索范围</span>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={advancedSearch.filter.searchInTitle}
+                  onChange={(event) => advancedSearch.updateFilter({ searchInTitle: event.target.checked })}
+                />
+                <span>标题</span>
+              </label>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={advancedSearch.filter.searchInDescription}
+                  onChange={(event) => advancedSearch.updateFilter({ searchInDescription: event.target.checked })}
+                />
+                <span>描述</span>
+              </label>
+            </div>
+            <div className="field">
+              <span>优先级</span>
+              {priorityOptions.map((option) => (
+                <label key={option.value} className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    checked={advancedSearch.filter.priorities.includes(option.value)}
+                    onChange={(event) => {
+                      const isChecked = event.target.checked
+                      const current = advancedSearch.filter.priorities
+                      advancedSearch.updateFilter({
+                        priorities: isChecked ? [...current, option.value] : current.filter((p) => p !== option.value)
+                      })
+                    }}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="advanced-search-row">
+            <div className="field">
+              <span>开始日期</span>
+              <Input
+                type="date"
+                value={advancedSearch.filter.startDate}
+                onChange={(event) => advancedSearch.updateFilter({ startDate: event.target.value })}
+              />
+            </div>
+            <div className="field">
+              <span>结束日期</span>
+              <Input
+                type="date"
+                value={advancedSearch.filter.endDate}
+                onChange={(event) => advancedSearch.updateFilter({ endDate: event.target.value })}
+              />
+            </div>
+            <div className="field">
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={advancedSearch.filter.exactMatch}
+                  onChange={(event) => advancedSearch.updateFilter({ exactMatch: event.target.checked })}
+                />
+                <span>精确匹配</span>
+              </label>
+            </div>
+          </div>
+          {advancedSearch.isActive ? (
+            <Button type="button" variant="ghost" size="sm" onClick={() => advancedSearch.resetFilter()}>
+              清除筛选
+            </Button>
+          ) : null}
+        </Card>
+      ) : null}
 
       {error ? <div className="error-banner">{error}</div> : null}
       {feedback ? <div className="task-feedback">{feedback}</div> : null}

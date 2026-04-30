@@ -11,6 +11,11 @@ import type {
   ImportMode,
   ImportResult,
   JournalTaskReference,
+  LogFilter,
+  NotificationOptions,
+  NotificationResult,
+  ShortcutAction,
+  ShortcutDefinition,
   StorageSnapshot,
   UpsertJournalEntryInput,
   UpdateTaskInput
@@ -45,7 +50,24 @@ const desktopApi: DesktopApi = {
   toggleChecklistItem: async (taskId: string, checklistItemId: string) =>
     ipcRenderer.invoke('tasks:checklist:toggle', taskId, checklistItemId),
   removeChecklistItem: async (taskId: string, checklistItemId: string) =>
-    ipcRenderer.invoke('tasks:checklist:remove', taskId, checklistItemId)
+    ipcRenderer.invoke('tasks:checklist:remove', taskId, checklistItemId),
+
+  showNotification: async (options: NotificationOptions): Promise<NotificationResult> =>
+    ipcRenderer.invoke('notification:show', options),
+
+  getShortcuts: async (): Promise<ShortcutDefinition[]> => ipcRenderer.invoke('shortcuts:get'),
+  updateShortcut: async (action: ShortcutAction, enabled: boolean): Promise<ShortcutDefinition[]> =>
+    ipcRenderer.invoke('shortcuts:update', action, enabled),
+
+  logDebug: async (module: string, message: string, data?: Record<string, unknown>) =>
+    ipcRenderer.invoke('log:debug', module, message, data),
+  logInfo: async (module: string, message: string, data?: Record<string, unknown>) =>
+    ipcRenderer.invoke('log:info', module, message, data),
+  logWarn: async (module: string, message: string, data?: Record<string, unknown>) =>
+    ipcRenderer.invoke('log:warn', module, message, data),
+  logError: async (module: string, message: string, data?: Record<string, unknown>) =>
+    ipcRenderer.invoke('log:error', module, message, data),
+  getLogs: async (filter?: LogFilter) => ipcRenderer.invoke('log:get', filter)
 }
 
 contextBridge.exposeInMainWorld('desktopApi', desktopApi)

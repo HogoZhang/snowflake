@@ -291,6 +291,67 @@ export interface StorageSnapshot {
   schemaVersion: number
 }
 
+export type NotificationType = 'task_due' | 'task_completed' | 'timer_complete' | 'reminder' | 'success' | 'error'
+
+export interface NotificationOptions {
+  type: NotificationType
+  title: string
+  body: string
+  silent?: boolean
+  urgency?: 'low' | 'normal' | 'critical'
+}
+
+export interface NotificationResult {
+  success: boolean
+  notificationId?: string
+}
+
+export type ShortcutAction =
+  | 'new_task'
+  | 'toggle_timer'
+  | 'complete_task'
+  | 'open_tasks'
+  | 'open_journal'
+  | 'open_analytics'
+  | 'open_settings'
+  | 'search'
+
+export interface ShortcutDefinition {
+  action: ShortcutAction
+  accelerator: string
+  enabled: boolean
+}
+
+export interface LogEntry {
+  id: string
+  timestamp: string
+  level: 'debug' | 'info' | 'warn' | 'error'
+  module: string
+  message: string
+  data?: Record<string, unknown>
+}
+
+export interface LogFilter {
+  levels?: Array<LogEntry['level']>
+  modules?: string[]
+  startDate?: string
+  endDate?: string
+}
+
+export interface AdvancedSearchQuery {
+  keyword: string
+  searchInTitle?: boolean
+  searchInDescription?: boolean
+  searchInContent?: boolean
+  statuses?: TaskStatus[]
+  priorities?: TaskPriority[]
+  categories?: string[]
+  entryTypes?: JournalEntryType[]
+  startDate?: string
+  endDate?: string
+  exactMatch?: boolean
+}
+
 export interface DesktopApi {
   ping: () => Promise<string>
   getSettings: () => Promise<AppSettings>
@@ -313,4 +374,14 @@ export interface DesktopApi {
   addChecklistItem: (taskId: string, input: CreateChecklistItemInput) => Promise<TaskDocument>
   toggleChecklistItem: (taskId: string, checklistItemId: string) => Promise<TaskDocument>
   removeChecklistItem: (taskId: string, checklistItemId: string) => Promise<TaskDocument>
+
+  showNotification: (options: NotificationOptions) => Promise<NotificationResult>
+  getShortcuts: () => Promise<ShortcutDefinition[]>
+  updateShortcut: (action: ShortcutAction, enabled: boolean) => Promise<ShortcutDefinition[]>
+
+  logDebug: (module: string, message: string, data?: Record<string, unknown>) => Promise<void>
+  logInfo: (module: string, message: string, data?: Record<string, unknown>) => Promise<void>
+  logWarn: (module: string, message: string, data?: Record<string, unknown>) => Promise<void>
+  logError: (module: string, message: string, data?: Record<string, unknown>) => Promise<void>
+  getLogs: (filter?: LogFilter) => Promise<LogEntry[]>
 }

@@ -1,19 +1,28 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { NavLink, Route, Routes, useNavigate } from 'react-router-dom'
 
-import type { AppSettings, ImportMode, StorageSnapshot, ThemeId } from '@shared/schema'
+import type {
+  AppSettings,
+  ImportMode,
+  ShortcutAction,
+  ShortcutDefinition,
+  StorageSnapshot,
+  ThemeId
+} from '@shared/schema'
 import { Button, Card, Input, Select } from '@renderer/components/ui'
 import { getDesktopApi } from './desktopApi'
+import { useNotification } from './hooks/useNotification'
+import { useShortcuts } from './hooks/useShortcuts'
 import { AnalyticsPage as Phase5AnalyticsPage } from './pages/AnalyticsPage'
 import { JournalPage } from './pages/JournalPage'
 import { TasksPage } from './pages/TasksPage'
 import { applyThemeToDocument, getThemeDefinition, getThemeDefinitions } from './themes/catalog'
 
 const navItems = [
-  { to: '/', label: '任务管理' },
-  { to: '/journal', label: '日记归总' },
-  { to: '/analytics', label: '统计图表' },
-  { to: '/settings', label: '应用设置' }
+  { to: '/', label: '任务管理', shortcut: 'CmdOrCtrl+1' },
+  { to: '/journal', label: '日记归总', shortcut: 'CmdOrCtrl+2' },
+  { to: '/analytics', label: '统计图表', shortcut: 'CmdOrCtrl+3' },
+  { to: '/settings', label: '应用设置', shortcut: 'CmdOrCtrl+,' }
 ] as const
 
 const metricCards = [
@@ -42,6 +51,10 @@ const analyticsLineData = [
 const themeOptions = getThemeDefinitions()
 
 export function App(): ReactElement {
+  const navigate = useNavigate()
+  const { notifySuccess, notifyError } = useNotification()
+  const { shortcuts, setActionHandler } = useShortcuts()
+
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [snapshot, setSnapshot] = useState<StorageSnapshot | null>(null)
   const [loading, setLoading] = useState(true)
@@ -49,19 +62,56 @@ export function App(): ReactElement {
   const [previewThemeId, setPreviewThemeId] = useState<ThemeId | null>(null)
   const [readyThemeIds, setReadyThemeIds] = useState<ThemeId[]>([])
 
+  const handleShortcutAction = (action: ShortcutAction): void => {
+    void getDesktopApi().logInfo('Shortcut', `Shortcut action triggered: ${action}`)
+
+    switch (action) {
+      case 'open_tasks':
+        navigate('/')
+        break
+      case 'open_journal':
+        navigate('/journal')
+        break
+      case 'open_analytics':
+        navigate('/analytics')
+        break
+      case 'open_settings':
+        navigate('/settings')
+        break
+      case 'search':
+        const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement
+        if (searchInput) {
+          searchInput.focus()
+        }
+        break
+      case 'new_task':
+      case 'toggle_timer':
+      case 'complete_task':
+        void notifySuccess(`快捷键触发: ${action}`)
+        break
+    }
+  }
+
+  useEffect(() => {
+    setActionHandler(handleShortcutAction)
+  }, [setActionHandler])
+
   const loadAppState = async (): Promise<void> => {
+    const api = getDesktopApi()
     try {
       setLoading(true)
-      const desktopApi = getDesktopApi()
       const [nextSettings, nextSnapshot] = await Promise.all([
-        desktopApi.getSettings(),
-        desktopApi.getStorageSnapshot()
+        api.getSettings(),
+        api.getStorageSnapshot()
       ])
       setSettings(nextSettings)
       setSnapshot(nextSnapshot)
       setError(null)
+      void api.logInfo('App', 'Application state loaded successfully')
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load app state.')
+      const message = loadError instanceof Error ? loadError.message : 'Failed to load app state.'
+      setError(message)
+      void api.logError('App', 'Failed to load app state', { error: message })
     } finally {
       setLoading(false)
     }
@@ -100,12 +150,20 @@ export function App(): ReactElement {
   )
 
   const handleSettingsChange = async (patch: Partial<AppSettings>): Promise<void> => {
-    const desktopApi = getDesktopApi()
-    const nextSettings = await desktopApi.updateSettings(patch)
-    setSettings(nextSettings)
-    setPreviewThemeId(null)
-    const nextSnapshot = await desktopApi.getStorageSnapshot()
-    setSnapshot(nextSnapshot)
+    const api = getDesktopApi()
+    try {
+      const nextSettings = await api.updateSettings(patch)
+      setSettings(nextSettings)
+      setPreviewThemeId(null)
+      const nextSnapshot = await api.getStorageSnapshot()
+      setSnapshot(nextSnapshot)
+      void notifySuccess('设置已保存')
+      void api.logInfo('Settings', 'Settings updated successfully')
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Failed to save settings.'
+      void notifyError(message)
+      void api.logError('Settings', 'Failed to update settings', { error: message })
+    }
   }
 
   return (
@@ -125,6 +183,7 @@ export function App(): ReactElement {
               to={item.to}
               end={item.to === '/'}
               className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+              title={`${item.label} (${item.shortcut})`}
             >
               {item.label}
             </NavLink>
@@ -144,7 +203,7 @@ export function App(): ReactElement {
         {error ? <div className="error-banner">{error}</div> : null}
 
         <Routes>
-          <Route path="/" element={<TasksPage />} />
+          <Route path="/" element={<TasksPage onNotifySuccess={notifySuccess} onNotifyError={notifyError} />} />
           <Route path="/journal" element={<JournalPage />} />
           <Route
             path="/analytics"
@@ -156,6 +215,7 @@ export function App(): ReactElement {
               <SettingsPage
                 settings={settings}
                 snapshot={snapshot}
+                shortcuts={shortcuts}
                 onReload={loadAppState}
                 onSave={handleSettingsChange}
                 onPreviewTheme={setPreviewThemeId}
@@ -515,9 +575,21 @@ function BarChartIcon(): ReactElement {
   )
 }
 
+const shortcutActionLabels: Record<ShortcutAction, string> = {
+  new_task: '新建任务',
+  toggle_timer: '切换计时',
+  complete_task: '完成任务',
+  open_tasks: '打开任务页面',
+  open_journal: '打开日记页面',
+  open_analytics: '打开统计页面',
+  open_settings: '打开设置页面',
+  search: '搜索'
+}
+
 function SettingsPage({
   settings,
   snapshot,
+  shortcuts,
   onReload,
   onSave,
   onPreviewTheme,
@@ -525,6 +597,7 @@ function SettingsPage({
 }: {
   settings: AppSettings | null
   snapshot: StorageSnapshot | null
+  shortcuts: ShortcutDefinition[]
   onReload: () => Promise<void>
   onSave: (patch: Partial<AppSettings>) => Promise<void>
   onPreviewTheme: (themeId: ThemeId | null) => void
@@ -553,6 +626,19 @@ function SettingsPage({
     setDraft((current) => (current ? { ...current, activeThemeId: themeId } : current))
     onPreviewTheme(themeId)
     setFeedback('Theme preview applied. Save settings to persist it.')
+  }
+
+  const handleToggleShortcut = async (action: ShortcutAction, enabled: boolean): Promise<void> => {
+    try {
+      const desktopApi = getDesktopApi()
+      await desktopApi.updateShortcut(action, enabled)
+      setFeedback(`快捷键 ${shortcutActionLabels[action]} 已${enabled ? '启用' : '禁用'}`)
+      void desktopApi.logInfo('Settings', 'Shortcut updated', { action, enabled })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update shortcut.'
+      setFeedback(message)
+      void getDesktopApi().logError('Settings', 'Failed to update shortcut', { error: message })
+    }
   }
 
   const runTransfer = async (action: () => Promise<string>, shouldReload = false): Promise<void> => {
@@ -744,6 +830,29 @@ function SettingsPage({
           <li>Schema: {snapshot?.schemaVersion ?? '-'}</li>
           <li>Updated At: {draft.updatedAt}</li>
         </ul>
+      </Card>
+
+      <Card className="list-card settings-actions-card">
+        <p className="eyebrow">Keyboard Shortcuts</p>
+        <h3>全局快捷键设置</h3>
+        <p className="muted">
+          启用或禁用全局快捷键，这些快捷键在应用处于后台时也可使用。
+        </p>
+        <div className="shortcut-list">
+          {shortcuts.map((shortcut) => (
+            <label key={shortcut.action} className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={shortcut.enabled}
+                onChange={(event) => void handleToggleShortcut(shortcut.action, event.target.checked)}
+              />
+              <span>
+                {shortcutActionLabels[shortcut.action]}
+                <code className="shortcut-key">{shortcut.accelerator}</code>
+              </span>
+            </label>
+          ))}
+        </div>
       </Card>
 
       <Card className="list-card settings-actions-card">

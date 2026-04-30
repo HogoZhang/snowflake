@@ -2,9 +2,20 @@ import { join } from 'node:path'
 
 import type { IpcMainInvokeEvent } from 'electron'
 
+import type {
+  LogEntry,
+  LogFilter,
+  NotificationOptions,
+  NotificationResult,
+  ShortcutAction,
+  ShortcutDefinition
+} from '@shared/schema'
 import { AnalyticsService } from './analytics/analyticsService'
 import { ImportExportService } from './importExport/importExportService'
 import { JournalService } from './journal/journalService'
+import { LoggerService } from './logger/loggerService'
+import { NotificationService } from './notification/notificationService'
+import { ShortcutService } from './shortcut/shortcutService'
 import { FileStorage } from './storage/fileStorage'
 import { TaskService } from './tasks/taskService'
 
@@ -57,6 +68,9 @@ export interface AppServices {
   journalService: JournalService
   analyticsService: AnalyticsService
   importExportService: ImportExportService
+  notificationService: NotificationService
+  shortcutService: ShortcutService
+  loggerService: LoggerService
 }
 
 export interface DialogSelectors {
@@ -67,12 +81,24 @@ export interface DialogSelectors {
 export function createApplicationServices(userDataDirectory: string, appVersion: string): AppServices {
   const storage = new FileStorage(userDataDirectory)
 
+  const loggerService = new LoggerService({
+    logDirectory: userDataDirectory,
+    level: 'info',
+    consoleOutput: true
+  })
+
+  const notificationService = new NotificationService()
+  const shortcutService = new ShortcutService()
+
   return {
     storage,
     taskService: new TaskService(storage),
     journalService: new JournalService(storage),
     analyticsService: new AnalyticsService(storage),
-    importExportService: new ImportExportService(storage, appVersion)
+    importExportService: new ImportExportService(storage, appVersion),
+    notificationService,
+    shortcutService,
+    loggerService
   }
 }
 
@@ -155,4 +181,27 @@ export function registerIpcHandlers(
   ipcMain.handle('tasks:checklist:remove', async (_event, taskId, checklistItemId) =>
     services.taskService.removeChecklistItem(taskId, checklistItemId)
   )
+
+  ipcMain.handle('notification:show', async (_event, options: NotificationOptions) =>
+    services.notificationService.showNotification(options)
+  )
+
+  ipcMain.handle('shortcuts:get', async () => services.shortcutService.getShortcuts())
+  ipcMain.handle('shortcuts:update', async (_event, action: ShortcutAction, enabled: boolean) =>
+    services.shortcutService.updateShortcut(action, enabled)
+  )
+
+  ipcMain.handle('log:debug', async (_event, module: string, message: string, data?: Record<string, unknown>) =>
+    services.loggerService.debug(module, message, data)
+  )
+  ipcMain.handle('log:info', async (_event, module: string, message: string, data?: Record<string, unknown>) =>
+    services.loggerService.info(module, message, data)
+  )
+  ipcMain.handle('log:warn', async (_event, module: string, message: string, data?: Record<string, unknown>) =>
+    services.loggerService.warn(module, message, data)
+  )
+  ipcMain.handle('log:error', async (_event, module: string, message: string, data?: Record<string, unknown>) =>
+    services.loggerService.error(module, message, data)
+  )
+  ipcMain.handle('log:get', async (_event, filter?: LogFilter) => services.loggerService.getLogs(filter))
 }
